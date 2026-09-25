@@ -5,7 +5,8 @@
 // Só telefones que estão em Usuários recebem código (qualquer um dos números da pessoa serve).
 // Sem `launchId` (raiz do hub, onde ainda não se sabe o quadro) o servidor procura o telefone em
 // qualquer quadro. Público (sem JWT), com limites por telefone.
-// Segredos: EVOLUTION_URL, EVOLUTION_APIKEY (e opcionais EVOLUTION_SEND_PATH, EVOLUTION_INSTANCE).
+// Segredos: EVOLUTION_URL, EVOLUTION_APIKEY (opcionais EVOLUTION_SEND_PATH, EVOLUTION_INSTANCE,
+// APP_NAME para o nome na mensagem do código e LOGIN_EMAIL_DOMAIN para o e-mail interno).
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -38,6 +39,20 @@ function internalEmail(phone: string): string {
   return `wa-${phone}@${Deno.env.get('LOGIN_EMAIL_DOMAIN') ?? 'login.example.com'}`
 }
 
+/** Chave dos códigos de quem administra a plataforma e ainda não está em quadro nenhum. */
+const OWNER_KEY = '_plataforma'
+
+// deno-lint-ignore no-explicit-any
+async function isPlatformOwner(sb: any, phone: string): Promise<boolean> {
+  const { data } = await sb.from('comu_hub_settings').select('value').eq('key', 'platform_owners').maybeSingle()
+  try {
+    const list = JSON.parse(data?.value || '[]')
+    return Array.isArray(list) && list.map(String).includes(phone)
+  } catch {
+    return false
+  }
+}
+
 /** Números da pessoa: lista `phones` quando existe, senão o `phone` principal. */
 function personPhones(p: { phone?: string; phones?: unknown }): string[] {
   const list = Array.isArray(p.phones) && p.phones.length ? p.phones : [p.phone]
@@ -63,20 +78,30 @@ Deno.serve(async (req) => {
   const generic = 'Se esse número estiver no cadastro do time, o código chega no WhatsApp em instantes.'
 
   // Qual quadro guarda o código: o da URL, ou o primeiro em que o telefone estiver.
+  // Quem administra a plataforma (platform_owners) entra mesmo sem quadro nenhum: é assim que
+  // a instalação nova cria o primeiro quadro.
   let launchId = (body.launchId ?? '').slice(0, 64)
   if (!launchId) {
     const { data: found } = await sb.rpc('comu_hub_launch_for_phone', { p_phone: phone })
     launchId = typeof found === 'string' ? found : ''
+    if (!launchId && (await isPlatformOwner(sb, phone))) launchId = OWNER_KEY
     if (!launchId) {
       if (body.action === 'request') return json({ ok: true, message: generic })
       return json({ error: 'Código inválido ou vencido.' }, 401)
     }
   }
 
-  const { data: launch } = await sb.from('comu_hub_launches').select('state').eq('id', launchId).maybeSingle()
-  if (!launch) return json({ error: 'quadro não encontrado' }, 404)
-  const people = ((launch.state as { people?: { phone?: string; phones?: string[]; name?: string }[] }).people ?? [])
-  const person = people.find((p) => personPhones(p).includes(phone))
+  let person: { name?: string } | undefined
+  let boardName = ''
+  if (launchId === OWNER_KEY) {
+    person = { name: '' }
+  } else {
+    const { data: launch } = await sb.from('comu_hub_launches').select('state').eq('id', launchId).maybeSingle()
+    if (!launch) return json({ error: 'quadro não encontrado' }, 404)
+    const state = launch.state as { name?: string; people?: { phone?: string; phones?: string[]; name?: string }[] }
+    person = (state.people ?? []).find((p) => personPhones(p).includes(phone))
+    boardName = (state.name ?? '').trim()
+  }
 
   if (body.action === 'request') {
     if (!person) return json({ ok: true, message: generic })
@@ -109,7 +134,7 @@ Deno.serve(async (req) => {
     if (insErr) return json({ error: 'Falha ao gerar o código. Tente de novo.' }, 500)
 
     const first = (person.name ?? '').trim().split(/\s+/)[0]
-    const painel = ((launch.state as { name?: string }).name ?? '').trim() || 'Comu HUB'
+    const painel = boardName || Deno.env.get('APP_NAME') || 'Enkra Conteúdo'
     const text = `Olá${first ? `, ${first}` : ''}! Seu código para entrar no *${painel}* é:\n\n*${code}*\n\nVale por ${CODE_TTL_MIN} minutos. Se não foi você, ignore esta mensagem.`
     const sendPath = (Deno.env.get('EVOLUTION_SEND_PATH') ?? '/send/text').replace('{instance}', Deno.env.get('EVOLUTION_INSTANCE') ?? '')
     try {
