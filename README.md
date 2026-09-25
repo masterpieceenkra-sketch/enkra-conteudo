@@ -1,5 +1,7 @@
 # Enkra Conteúdo
 
+> **Primeira vez?** Siga o [tutorial em PDF](docs/Tutorial-Enkra-Conteudo.pdf): baixar o código, subir no seu Supabase e na sua Vercel e mudar o que quiser, passo a passo.
+
 Hub de conteúdo para social media e cliente trabalharem juntos: da ideia ao post no ar.
 
 - **Quadro** estilo kanban (Ideias → Aprovado → Em produção → Em revisão → Programado → Publicado), com arrastar e soltar, colunas editáveis e filtros.
