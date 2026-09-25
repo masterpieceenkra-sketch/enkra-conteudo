@@ -1,0 +1,237 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@theme {
+  --font-sans: 'Inter', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  --font-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+
+  --radius: 0.75rem;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-lime: var(--lime);
+  --color-lime-foreground: var(--lime-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-ring: var(--ring);
+  --color-blue: var(--blue);
+  --color-blue-foreground: var(--blue-foreground);
+  --color-aqua: var(--aqua);
+  --color-aqua-foreground: var(--aqua-foreground);
+  --color-pink-soft: var(--pink-soft);
+  --color-blue-soft: var(--blue-soft);
+  --color-lime-soft: var(--lime-soft);
+}
+
+/* Paleta Comu (Branding Strategy): preto, off-white, pink, azul, verde-água, verde-limão */
+:root {
+  color-scheme: light;
+  --background: #fbf2eb;
+  --foreground: #000000;
+  --surface: #ffffff;
+  --surface-2: #fdf8f4;
+  --muted: #f3e9e1;
+  --muted-foreground: #5c5652;
+  --border: #e8dcd2;
+  --primary: #f10064;
+  --primary-foreground: #ffffff;
+  --secondary: #000000;
+  --secondary-foreground: #fbf2eb;
+  --lime: #cfe600;
+  --lime-foreground: #000000;
+  --blue: #3a39ff;
+  --blue-foreground: #ffffff;
+  --aqua: #00c8c7;
+  --aqua-foreground: #000000;
+  --pink-soft: #fdd0d7;
+  --blue-soft: #d4e2fb;
+  --lime-soft: #dfe6a0;
+  --danger: #d1003f;
+  --danger-foreground: #ffffff;
+  --ring: #f10064;
+}
+
+/* Dark-first: preto absoluto da marca como base, superfícies em cinza quente */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --background: #000000;
+  --foreground: #fbf2eb;
+  --surface: #111110;
+  --surface-2: #181817;
+  --muted: #222120;
+  --muted-foreground: #a8a29c;
+  --border: #2a2927;
+  --primary: #f10064;
+  --primary-foreground: #ffffff;
+  --secondary: #fbf2eb;
+  --secondary-foreground: #000000;
+  --lime: #cfe600;
+  --lime-foreground: #000000;
+  --blue: #5c5bff;
+  --blue-foreground: #ffffff;
+  --aqua: #00c8c7;
+  --aqua-foreground: #000000;
+  --pink-soft: #3d0f1f;
+  --blue-soft: #14143a;
+  --lime-soft: #2a2d0a;
+  --danger: #ff3d7f;
+  --danger-foreground: #000000;
+  --ring: #f10064;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  body {
+    letter-spacing: 0.005em;
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+  }
+  h1 {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  input[type='date'] {
+    min-height: 2.375rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors select-none;
+  @apply disabled:opacity-50 disabled:pointer-events-none;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-border bg-surface;
+  }
+  .label-mono {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+  }
+  .field {
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors;
+    @apply hover:border-muted-foreground/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:opacity-90;
+  }
+  .btn-secondary {
+    @apply btn bg-secondary text-secondary-foreground hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply btn border border-border bg-transparent text-foreground hover:bg-muted;
+  }
+  .btn-danger {
+    @apply btn border border-danger/40 text-danger hover:bg-danger/10;
+  }
+  .icon-btn {
+    @apply inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
+    @apply disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs font-semibold transition-colors hover:bg-muted;
+  }
+  .chip-active {
+    @apply border-secondary bg-secondary text-secondary-foreground hover:bg-secondary;
+  }
+  .area-badge {
+    @apply inline-block rounded-sm bg-lime px-2 py-0.5 font-display text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-lime-foreground;
+  }
+  /* Motivo gráfico da marca: quadrados pink / azul / lima */
+  .brand-squares {
+    @apply inline-flex items-center gap-1 align-middle;
+  }
+  .brand-squares > i {
+    @apply block size-2;
+  }
+  .brand-squares > i:nth-child(1) {
+    background: var(--primary);
+  }
+  .brand-squares > i:nth-child(2) {
+    background: var(--blue);
+  }
+  .brand-squares > i:nth-child(3) {
+    background: var(--lime);
+  }
+  .checkbox {
+    @apply size-[18px] shrink-0 cursor-pointer rounded border-border accent-[var(--primary)];
+  }
+}
+
+/* Textarea que acompanha o conteúdo (navegadores com field-sizing dispensam o JS) */
+.auto-grow {
+  field-sizing: content;
+  line-height: 1.5;
+}
+
+/* Animação sutil de entrada para listas */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+/* Dialog nativo */
+dialog::backdrop {
+  background: oklch(0% 0 0 / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+/* Painel lateral do card (hub de conteúdo): entra pela direita */
+@keyframes drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+dialog.drawer[open] {
+  animation: drawer-in 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
