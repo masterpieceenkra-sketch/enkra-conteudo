@@ -2,6 +2,7 @@ import {
   BadgeCheck,
   BellOff,
   BellRing,
+  Clock,
   Pencil,
   Plus,
   ShieldCheck,
@@ -20,7 +21,8 @@ import type { Person } from '../data/types'
 import { MAX_PHONES, personPhones, useLaunchActions, useLaunchState } from '../store/launchStore'
 import { NotificationStatus } from '../components/NotificationStatus'
 import { useIsAdmin, useMe } from '../components/useActor'
-import { APP_FLAVOR } from '../lib/board'
+import { accessFor, accessLabel, usePeopleAccess } from '../lib/access'
+import { APP_FLAVOR, BOARD_ID } from '../lib/board'
 
 /** Papel Cliente só existe no hub de conteúdo: quem aprova os posts sem editar o quadro. */
 const HAS_CLIENTS = APP_FLAVOR === 'content'
@@ -37,6 +39,7 @@ export function UsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const isAdmin = useIsAdmin()
   const me = useMe()
+  const access = usePeopleAccess(isAdmin ? BOARD_ID : '')
 
   const people = [...s.people].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   const adminCount = s.people.filter((p) => p.admin).length
@@ -151,6 +154,9 @@ export function UsersPage() {
                   {p.email || 'sem e-mail'} ·{' '}
                   {personPhones(p).map(formatPhone).join(' · ') || 'sem WhatsApp'}
                 </p>
+                {access.size > 0 ? (
+                  <AccessLine label={accessLabel(accessFor(access, personPhones(p)))} />
+                ) : null}
               </div>
               <button
                 type="button"
@@ -274,6 +280,16 @@ export function UsersPage() {
   )
 }
 
+/** Último acesso ao painel (ou "ainda não entrou", com o último código pedido). */
+function AccessLine({ label }: { label: string }) {
+  return (
+    <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+      <Clock className="size-3 shrink-0" aria-hidden />
+      <span className="truncate">{label}</span>
+    </p>
+  )
+}
+
 function PersonForm({
   initial,
   submitLabel,
@@ -333,7 +349,7 @@ function PersonForm({
               <input
                 type="tel"
                 className={`field ${touched && !phoneOk ? 'border-danger' : ''}`}
-                placeholder={i === 0 ? '(85) 99999-0000' : 'Outro número'}
+                placeholder={i === 0 ? '(99) 99999-9999' : 'Outro número'}
                 aria-label={i === 0 ? 'WhatsApp principal' : `WhatsApp ${i + 1}`}
                 value={value}
                 maxLength={30}

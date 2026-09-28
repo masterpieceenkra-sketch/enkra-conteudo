@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
 import { useSyncExternalStore } from 'react'
+import { touchPresence } from './access'
 import { BOARD_ID } from './board'
 import { SUPABASE_KEY, SUPABASE_URL, SYNC_ENABLED, supabase } from './supabase'
 
@@ -27,9 +28,15 @@ function start() {
   if (!sb) return
   void sb.auth.getSession().then(({ data }) => {
     set({ status: data.session ? 'signed_in' : 'signed_out', session: data.session })
+    if (data.session) touchPresence()
   })
   sb.auth.onAuthStateChange((_event, session) => {
     set({ status: session ? 'signed_in' : 'signed_out', session })
+    if (session) touchPresence()
+  })
+  // último acesso: voltar para a aba também conta (o servidor grava no máximo a cada 5 min)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.session) touchPresence()
   })
 }
 
@@ -73,10 +80,12 @@ async function callLogin(body: Record<string, string>): Promise<Record<string, u
   return data
 }
 
-/** Pede o código no WhatsApp. Resposta é a mesma para número fora do cadastro. */
-export async function requestCode(phone: string): Promise<string> {
-  const r = await callLogin({ action: 'request', phone })
-  return typeof r.message === 'string' ? r.message : ''
+/**
+ * Pede o código no WhatsApp. A resposta é a mesma para número fora do cadastro; com ou sem o 9
+ * o servidor acha o cadastro e manda para o número cadastrado.
+ */
+export async function requestCode(phone: string): Promise<void> {
+  await callLogin({ action: 'request', phone })
 }
 
 /** Confere o código e abre a sessão neste navegador. */

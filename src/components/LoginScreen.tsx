@@ -13,7 +13,6 @@ export function LoginScreen() {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [info, setInfo] = useState<string | null>(null)
   const [resendIn, setResendIn] = useState(0)
 
   useEffect(() => {
@@ -29,8 +28,7 @@ export function LoginScreen() {
     setBusy(true)
     setError(null)
     try {
-      const msg = await requestCode(phone)
-      setInfo(msg)
+      await requestCode(phone)
       setStep('code')
       setResendIn(RESEND_S)
       setCode('')
@@ -79,7 +77,7 @@ export function LoginScreen() {
                 inputMode="tel"
                 autoComplete="tel"
                 className="field text-lg"
-                placeholder="(85) 99999-0000"
+                placeholder="(99) 99999-9999"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
@@ -92,7 +90,8 @@ export function LoginScreen() {
         ) : (
           <>
             <p className="mt-2 text-sm text-muted-foreground">
-              {info} Enviado para <strong className="text-foreground">{formatBr(digits)}</strong>.
+              Se <strong className="text-foreground">{formatBr(digits)}</strong> estiver no cadastro
+              do time, o código chega no WhatsApp em até 1 minuto.
             </p>
             <label className="mt-5 flex flex-col gap-1">
               <span className="label-mono">Código</span>
@@ -144,8 +143,9 @@ export function LoginScreen() {
           </p>
         ) : null}
         <p className="mt-6 text-xs text-muted-foreground">
-          Só entra quem está no cadastro do time. Se o código não chegar, fale com quem administra o
-          painel.
+          {step === 'code'
+            ? 'Não chegou? Use o mesmo número que recebeu a mensagem de boas-vindas (com ou sem o 9 funciona) ou peça para quem te cadastrou conferir.'
+            : 'Só entra quem está no cadastro do time. Se o código não chegar, fale com quem administra o painel.'}
         </p>
       </form>
     </main>

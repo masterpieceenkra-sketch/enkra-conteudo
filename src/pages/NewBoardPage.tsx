@@ -228,7 +228,7 @@ export function NewBoardPage() {
               <input
                 type="tel"
                 className={`field ${clientFilled && !clientOk ? 'border-danger' : ''}`}
-                placeholder="(85) 99999-0000"
+                placeholder="(99) 99999-9999"
                 maxLength={30}
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}

@@ -19,6 +19,12 @@ create table if not exists public.comu_hub_launches (
   updated_by text not null default ''
 );
 
+create table if not exists public.comu_hub_access (
+  phone text primary key,
+  last_seen_at timestamptz,
+  last_code_at timestamptz
+);
+
 create table if not exists public.comu_hub_activity (
   id bigserial primary key,
   launch_id text not null references public.comu_hub_launches(id) on delete cascade,
@@ -117,6 +123,7 @@ create table if not exists public.comu_hub_settings (
 );
 
 alter table public.comu_hub_launches enable row level security;
+alter table public.comu_hub_access enable row level security;
 alter table public.comu_hub_activity enable row level security;
 alter table public.comu_hub_ai_calls enable row level security;
 alter table public.comu_hub_auth_users enable row level security;
@@ -1541,6 +1548,43 @@ AS $function$
 $function$
 ;
 
+-- último acesso: o app marca "usando agora" (no máximo a cada 5 min); o login grava o último código
+CREATE OR REPLACE FUNCTION public.comu_hub_touch()
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.comu_hub_access as a (phone, last_seen_at)
+  select public.comu_hub_my_phone(), now()
+  where public.comu_hub_my_phone() <> '' and public.comu_hub_is_member_any()
+  on conflict (phone) do update set last_seen_at = excluded.last_seen_at
+  where a.last_seen_at is null or a.last_seen_at < now() - interval '5 minutes'
+$function$
+;
+
+-- tela Usuários: último acesso e último código de cada número do quadro, só para admin
+CREATE OR REPLACE FUNCTION public.comu_hub_people_access(p_launch text)
+ RETURNS TABLE(phone text, last_seen_at timestamp with time zone, last_code_at timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with phones as (
+    select distinct unnest(public.comu_hub_person_phones(p)) as phone
+    from public.comu_hub_launches l, jsonb_array_elements(coalesce(l.state->'people', '[]'::jsonb)) p
+    where l.id = p_launch and public.comu_hub_is_admin(p_launch)
+  )
+  select ph.phone,
+         nullif(greatest(coalesce(a.last_seen_at, '-infinity'), coalesce(u.last_sign_in_at, '-infinity')), '-infinity'),
+         greatest(a.last_code_at, (select max(c.created_at) from public.comu_hub_login_codes c where c.phone = ph.phone))
+  from phones ph
+  left join public.comu_hub_access a on a.phone = ph.phone
+  left join public.comu_hub_auth_users au on au.phone = ph.phone
+  left join auth.users u on u.id = au.user_id
+$function$
+;
+
 reset check_function_bodies;
 
 -- ---------- permissões ----------
@@ -1566,6 +1610,8 @@ grant execute on function public.comu_hub_send_task_update(text, jsonb, text, te
 grant execute on function public.comu_hub_content_review(text, text, text, text) to authenticated;
 grant execute on function public.comu_hub_content_notify_review(text) to authenticated;
 grant execute on function public.comu_hub_content_overview() to authenticated;
+grant execute on function public.comu_hub_touch() to authenticated;
+grant execute on function public.comu_hub_people_access(text) to authenticated;
 
 -- ---------- leitura por RLS (escrita só pelas funções) ----------
 
