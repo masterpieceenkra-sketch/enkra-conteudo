@@ -6,6 +6,7 @@ import {
   MESSAGE_KIND_INFO,
   TEMPLATE_MAX_LENGTH,
   defaultTemplate,
+  templateContext,
   fillTemplate,
   withBoardName,
   type MessageKind,
@@ -127,7 +128,7 @@ export function MessageTemplatesPanel() {
   const isContent = boardKind(s) === 'content'
   const kinds = isContent ? CONTENT_MESSAGE_KINDS : LAUNCH_MESSAGE_KINDS
   const [kind, setKind] = useState<MessageKind>(kinds[0])
-  const fallback = defaultTemplate(kind, isContent)
+  const fallback = defaultTemplate(kind, templateContext(s))
   const saved = s.messages?.[kind] ?? fallback
   const [draft, setDraft] = useState(saved)
   const [editingKind, setEditingKind] = useState(kind)

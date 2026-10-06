@@ -915,6 +915,7 @@ AS $function$
     when 'content_decision' then E'Olá, {nome}! O conteúdo *{conteudo}* foi {decisao} por {autor}.\n\nComentário: {comentario}\n\nAbrir card: {link}\n\n{painel} 👋'
     when 'content_comment' then E'Olá, {nome}! {autor} comentou em *{conteudo}*. 💬\n\n{comentario}\n\nResponder: {link}\n\n{painel} 👋'
     when 'content_publish_today' then E'Olá, {nome}! Hoje é dia de publicar *{conteudo}* ({formato}). 🚀\n\nPublicação: {publicacao}\n\nAbrir card: {link}\n\n{painel} 👋'
+    when 'board:welcome' then E'Olá, {nome}! 👋\nVocê foi cadastrado(a) no painel *{painel}*, por {autor}.\nPor lá ficam as suas tarefas, as reuniões e o histórico do time. Quando uma tarefa for sua ou uma reunião for marcada com você, eu te aviso por aqui.\n\nAcesse: {link}'
     when 'content:welcome' then E'Olá, {nome}! 👋\nVocê foi cadastrado(a) no *{painel}*, o hub de conteúdo, por {autor}.\nPor lá ficam o quadro, o calendário e os posts para aprovar. Quando um conteúdo for seu ou precisar da sua aprovação, eu te aviso por aqui.\n\nAcesse: {link}'
     else '' end
 $function$
@@ -1543,6 +1544,11 @@ AS $function$
       nullif(trim(left(p_state->'messages'->>p_kind, 2000)), ''),
       case when p_state->>'kind' = 'content'
            then nullif(public.comu_hub_default_template('content:' || p_kind), '') end,
+      -- quadro com nome: "no Comu HUB" vira "no painel <nome>" e a assinatura vira o nome
+      case when coalesce(trim(p_state->>'name'), '') <> ''
+           then coalesce(nullif(public.comu_hub_default_template('board:' || p_kind), ''),
+                         replace(replace(public.comu_hub_default_template(p_kind), 'no Comu HUB', 'no painel {painel}'),
+                                 'Comu HUB', '{painel}')) end,
       public.comu_hub_default_template(p_kind)),
     '{painel}', public.comu_hub_board_name(p_state))
 $function$

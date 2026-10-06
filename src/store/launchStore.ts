@@ -1,6 +1,11 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { BRIEF_SECTIONS } from '../data/brief'
-import { templateMilestones, templatePhaseIds, templatePhases } from '../data/boardTemplates'
+import {
+  SPRINT_CURRENT_PHASE_ID,
+  templateMilestones,
+  templatePhaseIds,
+  templatePhases,
+} from '../data/boardTemplates'
 import {
   DEFAULT_NOTIFICATION_PREFS,
   NOTIFICATION_PREF_LABELS,
@@ -12,7 +17,9 @@ import {
   defaultTemplate,
   MESSAGE_KIND_INFO,
   TEMPLATE_MAX_LENGTH,
+  templateContext,
   type MessageKind,
+  type TemplateContext,
 } from '../data/messageTemplates'
 import { DEFAULT_LABELS, isHttpUrl, isLabelColor } from '../data/labels'
 import { DEFAULT_LAUNCH_START, defaultPhaseDates } from '../data/phases'
@@ -322,7 +329,7 @@ export function parseState(raw: unknown): LaunchState {
     meetings: parseMeetings(obj.meetings),
     people: parsePeople(obj.people),
     notifications: parseNotificationPrefs(obj.notifications),
-    ...parseMessages(obj.messages, kind === 'content'),
+    ...parseMessages(obj.messages, templateContext({ kind, name })),
     diary: stringRecord(obj.diary),
     ...(kind === 'content' ? { content: parseContent(obj.content) } : {}),
     updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : new Date().toISOString(),
@@ -330,14 +337,14 @@ export function parseState(raw: unknown): LaunchState {
 }
 
 /** Modelos de mensagem editados; só entram os que diferem do padrão e cabem no limite. */
-function parseMessages(raw: unknown, content: boolean): Pick<LaunchState, 'messages'> {
+function parseMessages(raw: unknown, ctx: TemplateContext): Pick<LaunchState, 'messages'> {
   if (!raw || typeof raw !== 'object') return {}
   const out: Partial<Record<MessageKind, string>> = {}
   for (const k of MESSAGE_KINDS) {
     const v = (raw as Record<string, unknown>)[k]
     if (typeof v !== 'string') continue
     const t = v.trim().slice(0, TEMPLATE_MAX_LENGTH)
-    if (t && t !== defaultTemplate(k, content)) out[k] = t
+    if (t && t !== defaultTemplate(k, ctx)) out[k] = t
   }
   return Object.keys(out).length ? { messages: out } : {}
 }
@@ -1405,7 +1412,7 @@ export function useLaunchActions() {
   /** Texto do aviso; string vazia ou igual ao padrão volta ao padrão. */
   const setMessageTemplate = useCallback((kind: MessageKind, text: string) => {
     const t = text.trim().slice(0, TEMPLATE_MAX_LENGTH)
-    const custom = t && t !== defaultTemplate(kind, boardKind(load()) === 'content') ? t : undefined
+    const custom = t && t !== defaultTemplate(kind, templateContext(load())) ? t : undefined
     apply(
       (s) => {
         const cur = s.messages?.[kind]
@@ -1707,10 +1714,14 @@ export function boardName(s: LaunchState): string {
 
 export function currentPhase(s: LaunchState, today: IsoDate): Phase | undefined {
   const dated = s.phases.filter(phaseHasDates)
+  // quadro de sprint sem datas: o foco é a "Sprint atual", não o Backlog (primeira coluna)
+  const undatedFocus =
+    s.kind === 'sprint' ? s.phases.find((p) => p.id === SPRINT_CURRENT_PHASE_ID) : undefined
   return (
     dated.find((p) => p.start <= today && today <= p.end) ??
     dated.find((p) => p.start > today) ??
     dated.at(-1) ??
+    undatedFocus ??
     s.phases[0]
   )
 }

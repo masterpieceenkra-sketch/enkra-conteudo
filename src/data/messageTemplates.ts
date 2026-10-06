@@ -331,13 +331,38 @@ Acesse: {link}`,
   ...CONTENT_TEMPLATES,
 }
 
+/** Boas-vindas de quadro com nome (perpétuo, sprint, lançamento de cliente): sem falar de lançamento. */
+const BOARD_WELCOME = `Olá, {nome}! 👋
+Você foi cadastrado(a) no painel *{painel}*, por {autor}.
+Por lá ficam as suas tarefas, as reuniões e o histórico do time. Quando uma tarefa for sua ou uma reunião for marcada com você, eu te aviso por aqui.
+
+Acesse: {link}`
+
+/** O que muda o texto padrão: hub de conteúdo e quadro com nome próprio. */
+export interface TemplateContext {
+  content: boolean
+  named: boolean
+}
+
+export function templateContext(s: { kind?: string; name?: string }): TemplateContext {
+  return { content: s.kind === 'content', named: !!s.name?.trim() }
+}
+
 /**
- * Texto padrão de um aviso para o tipo de quadro. O conteúdo tem boas-vindas próprias; os
- * outros avisos são iguais em qualquer quadro. Mesma regra de `comu_hub_default_template`.
+ * Texto padrão de um aviso para o quadro. Conteúdo tem boas-vindas próprias. Quadro com nome
+ * usa o nome dele ("no painel {painel}", assinatura "{painel}") e boas-vindas sem falar de
+ * lançamento; o quadro sem nome (o da Comu) fica com os textos originais.
+ * Mesma regra de `comu_hub_template`; mudar aqui exige mudar lá.
  */
-export function defaultTemplate(kind: MessageKind, content: boolean): string {
-  if (content && kind === 'welcome') return CONTENT_WELCOME
+export function defaultTemplate(kind: MessageKind, ctx: TemplateContext): string {
+  if (ctx.content && kind === 'welcome') return CONTENT_WELCOME
+  if (!ctx.named) return DEFAULT_MESSAGE_TEMPLATES[kind]
+  if (kind === 'welcome') return BOARD_WELCOME
   return DEFAULT_MESSAGE_TEMPLATES[kind]
+    .split('no Comu HUB')
+    .join('no painel {painel}')
+    .split('Comu HUB')
+    .join('{painel}')
 }
 
 /** `{painel}` vira o nome do quadro antes do preenchimento (igual a `comu_hub_template`). */

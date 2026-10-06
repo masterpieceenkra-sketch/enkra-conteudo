@@ -51,9 +51,12 @@ describe('aprovação acompanha a coluna', () => {
 
 describe('textos do hub de conteúdo', () => {
   it('boas-vindas do conteúdo são outras; o resto é igual em todo quadro', () => {
-    expect(defaultTemplate('welcome', true)).toContain('hub de conteúdo')
-    expect(defaultTemplate('welcome', false)).toBe(DEFAULT_MESSAGE_TEMPLATES.welcome)
-    expect(defaultTemplate('card_assigned', true)).toBe(DEFAULT_MESSAGE_TEMPLATES.card_assigned)
+    const content = { content: true, named: true }
+    expect(defaultTemplate('welcome', content)).toContain('hub de conteúdo')
+    expect(defaultTemplate('welcome', { content: false, named: false })).toBe(
+      DEFAULT_MESSAGE_TEMPLATES.welcome,
+    )
+    expect(defaultTemplate('card_assigned', content)).toBe(DEFAULT_MESSAGE_TEMPLATES.card_assigned)
   })
 
   it('decisão sem comentário some com a linha; {painel} vira o nome do quadro', () => {
@@ -72,7 +75,8 @@ describe('textos do hub de conteúdo', () => {
   })
 
   it('todo aviso do conteúdo tem texto padrão e link', () => {
-    for (const k of CONTENT_MESSAGE_KINDS) expect(defaultTemplate(k, true)).toContain('{link}')
+    for (const k of CONTENT_MESSAGE_KINDS)
+      expect(defaultTemplate(k, { content: true, named: true })).toContain('{link}')
   })
 })
 

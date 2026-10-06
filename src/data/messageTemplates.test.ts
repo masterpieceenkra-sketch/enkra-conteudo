@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_MESSAGE_TEMPLATES, fillTemplate } from './messageTemplates'
+import {
+  DEFAULT_MESSAGE_TEMPLATES,
+  defaultTemplate,
+  fillTemplate,
+  templateContext,
+  withBoardName,
+} from './messageTemplates'
 
 const link = 'https://seu-painel.vercel.app/checklist?card=x'
 
@@ -70,5 +76,35 @@ describe('fillTemplate (mesma regra da função SQL comu_hub_fill_template)', ()
 
   it('texto livre do usuário: placeholder desconhecido fica como está', () => {
     expect(fillTemplate('Oi {nome}, veja {coisa}', { nome: 'Ana' })).toBe('Oi Ana, veja {coisa}')
+  })
+})
+
+describe('avisos com o nome do quadro (mesma regra de comu_hub_template)', () => {
+  const ctx = templateContext({ kind: 'sprint', name: 'Agência' })
+  const fill = (t: string) =>
+    fillTemplate(withBoardName(t, 'Agência'), {
+      nome: 'Ana',
+      autor: 'Bia',
+      link: 'https://exemplo.com/agencia',
+      tarefa: 'X',
+      prazo: '10/10',
+      checklist: '',
+    })
+
+  it('boas-vindas citam o painel pelo nome e não falam de lançamento', () => {
+    const out = fill(defaultTemplate('welcome', ctx))
+    expect(out).toContain('Você foi cadastrado(a) no painel *Agência*, por Bia.')
+    expect(out).not.toMatch(/lançamento|Comu/)
+  })
+
+  it('tarefa atribuída usa "no painel <nome>" e assina com o nome', () => {
+    const out = fill(defaultTemplate('task_assigned', ctx))
+    expect(out).toContain('por *X* no painel Agência.')
+    expect(out.endsWith('Bia · Agência 👋')).toBe(true)
+  })
+
+  it('quadro sem nome mantém os textos originais', () => {
+    const unnamed = templateContext({ kind: 'launch' })
+    expect(defaultTemplate('welcome', unnamed)).toBe(DEFAULT_MESSAGE_TEMPLATES.welcome)
   })
 })

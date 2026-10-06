@@ -57,6 +57,12 @@ describe('seletores', () => {
     expect(currentPhase(s, '2027-01-01')?.id).toBe('f7')
   })
 
+  it('quadro de sprint sem datas tem a Sprint atual como fase atual, não o Backlog', () => {
+    const s = buildInitialState('2026-09-18', 'sprint')
+    expect(currentPhase(s, '2026-10-06')?.name).toBe('Sprint atual')
+    expect(currentPhase(buildInitialState('2026-09-18', 'blank'), '2026-10-06')?.id).toBe('p1')
+  })
+
   it('próximo marco inclui o de hoje', () => {
     const s = buildInitialState('2026-09-18')
     expect(nextMilestone(s, '2026-10-02')?.id).toBe('m1')
