@@ -11,6 +11,8 @@ import {
   overdueTasks,
   parseState,
   progressOf,
+  settleSprintDone,
+  syncDoneWithColumn,
   STORAGE_KEY,
   UNREADABLE_KEY,
 } from './launchStore'
@@ -210,5 +212,42 @@ describe('campos do quadro', () => {
     expect(velho.kind).toBe('launch')
     expect(velho.url).toBeUndefined()
     expect(velho.name).toBeUndefined()
+  })
+})
+
+describe('quadro de sprint: concluída vai para Concluído', () => {
+  const sprint = () => {
+    const s = buildInitialState('2026-09-18', 'sprint')
+    const task = (id: string, done = false) => ({ id, label: id, owner: '', due: '', done })
+    s.phases[1].areas[0].tasks = [task('a'), task('b')]
+    return s
+  }
+  const where = (s: ReturnType<typeof sprint>, id: string) =>
+    s.phases.find((p) => p.areas.some((a) => a.tasks.some((t) => t.id === id)))?.name
+
+  it('marcar como feita leva para o fim de Concluído; desmarcar devolve para a Sprint atual', () => {
+    let s = sprint()
+    s.phases[1].areas[0].tasks[0].done = true
+    s = settleSprintDone(s, ['a'])
+    expect(where(s, 'a')).toBe('Concluído')
+    expect(where(s, 'b')).toBe('Sprint atual')
+    s.phases[3].areas[0].tasks[0].done = false
+    s = settleSprintDone(s, ['a'])
+    expect(where(s, 'a')).toBe('Sprint atual')
+  })
+
+  it('soltar em Concluído marca como feita e tirar de lá desmarca', () => {
+    let s = sprint()
+    const t = s.phases[1].areas[0].tasks.shift()!
+    s.phases[3].areas[0].tasks.push(t)
+    s = syncDoneWithColumn(s, 'a')
+    expect(s.phases[3].areas[0].tasks[0].done).toBe(true)
+  })
+
+  it('quadro de lançamento não muda de lugar ao concluir', () => {
+    const s = buildInitialState('2026-09-18')
+    const t = s.phases[0].areas[0].tasks[0]
+    t.done = true
+    expect(settleSprintDone(s, [t.id])).toBe(s)
   })
 })

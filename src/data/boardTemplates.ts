@@ -15,6 +15,8 @@ const SPRINT_TEMPLATE: PhaseTemplate[] = [
 
 /** Coluna "Sprint atual" do quadro de sprint: é a fase atual quando as fases não têm datas. */
 export const SPRINT_CURRENT_PHASE_ID = 's2'
+/** Coluna "Concluído" do quadro de sprint: marcar como feita leva a tarefa para cá. */
+export const SPRINT_DONE_PHASE_ID = 's4'
 
 const BLANK_TEMPLATE: PhaseTemplate[] = [
   { id: 'p1', name: 'Tarefas', areas: [{ name: 'GERAL', tasks: [] }] },

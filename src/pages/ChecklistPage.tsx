@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -76,7 +77,6 @@ function ChecklistInner() {
   const [detailTaskId, setDetailTaskId] = useState<string | null>(() => params.get('card'))
   const notified = useTaskNotifications()
   const openTask = useMemo(() => openTaskContext(setDetailTaskId), [setDetailTaskId])
-  const dragApi = useTaskDrag()
   // O padrão é ver o que falta: concluída sai da lista e fica no chip "Concluídas".
   const filter = (params.get('filtro') as Filter) || 'pendentes'
   const resp = params.get('resp')
@@ -152,6 +152,13 @@ function ChecklistInner() {
     const atual = currentPhase(s, today)?.id ?? s.phases[0]?.id
     return new Set(atual ? [atual] : [])
   })
+
+  // segurar uma tarefa em cima de uma fase recolhida abre a fase
+  const expandPhase = useCallback(
+    (id: string) => setOpen((o) => (o.has(id) ? o : new Set(o).add(id))),
+    [],
+  )
+  const dragApi = useTaskDrag(expandPhase)
 
   const total = progressOf(allTasks(s))
   // "recortada" é a lista que esconde tarefa por busca, área, etiqueta, responsável ou estado
@@ -365,6 +372,8 @@ function PhaseSection({
 }) {
   const { addArea } = useLaunchActions()
   const toast = useToast()
+  const { drag } = useContext(DragCtx)
+  const isDropHere = !!drag && drag.overPhaseId === phase.id
   const [newArea, setNewArea] = useState('')
   const [addingArea, setAddingArea] = useState(false)
   const pr = progressOf(phase.areas.flatMap((a) => a.tasks))
@@ -381,11 +390,21 @@ function PhaseSection({
     <section id={`fase-${phase.id}`} className="card scroll-mt-40 overflow-hidden">
       <button
         type="button"
-        className="block w-full px-4 py-3.5 text-left hover:bg-muted/50 sm:flex sm:flex-wrap sm:items-center sm:gap-4 sm:px-6 sm:py-4"
+        data-phase-drop={open ? undefined : phase.id}
+        className={`block w-full px-4 py-3.5 text-left transition-colors hover:bg-muted/50 sm:flex sm:flex-wrap sm:items-center sm:gap-4 sm:px-6 sm:py-4 ${
+          isDropHere ? 'bg-primary/10 ring-2 ring-inset ring-primary' : ''
+        }`}
         aria-expanded={open}
         onClick={onToggle}
       >
-        <span className="block font-display text-base sm:flex-1 sm:text-lg">{phase.name}</span>
+        <span className="block font-display text-base sm:flex-1 sm:text-lg">
+          {phase.name}
+          {isDropHere ? (
+            <span className="ml-2 align-middle font-sans text-xs font-semibold text-primary">
+              Solte para mover para cá
+            </span>
+          ) : null}
+        </span>
         <div className="mt-2 flex items-center gap-3 sm:mt-0 sm:gap-4">
           <span className="shrink-0 text-sm text-muted-foreground">
             {pr.done}/{pr.total}
@@ -482,6 +501,8 @@ function PhaseSection({
 
 // ---------------- Área ----------------
 
+const DRAG_OFF_HINT = 'Para arrastar, volte para Pendentes sem filtros'
+
 const COLLAPSED_KEY = storageKey('gps-collapsed-areas')
 function readCollapsed(): Set<string> {
   try {
@@ -509,6 +530,8 @@ interface PageDrag {
   fromAreaId: string
   overAreaId: string | null
   overIndex: number
+  /** fase recolhida sob o ponteiro: soltar manda a tarefa para o fim dela */
+  overPhaseId: string | null
 }
 interface DragApi {
   drag: PageDrag | null
@@ -516,12 +539,21 @@ interface DragApi {
 }
 const DragCtx = createContext<DragApi>({ drag: null, start: () => {} })
 
-/** Onde o ponteiro está: uma lista de área (com índice) ou o cabeçalho de uma área recolhida. */
-function dropTargetAt(x: number, y: number): { areaId: string; index: number } | null {
+/** Linhas de tarefa de uma lista (o aviso de área vazia também é um <li>, mas não conta). */
+const taskRows = (ul: Element) =>
+  Array.from(ul.querySelectorAll<HTMLLIElement>(':scope > li[data-task-id]'))
+
+type DropTarget = { areaId: string; index: number } | { phaseId: string }
+
+/**
+ * Onde o ponteiro está: uma lista de área (com índice), o cabeçalho de uma área recolhida ou o
+ * cabeçalho de uma fase recolhida.
+ */
+function dropTargetAt(x: number, y: number): DropTarget | null {
   for (const ul of document.querySelectorAll<HTMLUListElement>('main ul[data-area-id]')) {
     const r = ul.getBoundingClientRect()
     if (x < r.left || x > r.right || y < r.top - 12 || y > r.bottom + 12) continue
-    const rows = Array.from(ul.querySelectorAll<HTMLLIElement>(':scope > li'))
+    const rows = taskRows(ul)
     let index = rows.length
     for (let i = 0; i < rows.length; i++) {
       const rr = rows[i].getBoundingClientRect()
@@ -537,11 +569,22 @@ function dropTargetAt(x: number, y: number): { areaId: string; index: number } |
     if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
       return { areaId: el.dataset.areaDrop!, index: Number.POSITIVE_INFINITY }
   }
+  for (const el of document.querySelectorAll<HTMLElement>('main [data-phase-drop]')) {
+    const r = el.getBoundingClientRect()
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
+      return { phaseId: el.dataset.phaseDrop! }
+  }
   return null
 }
 
-/** Motor do arrastar e soltar: a alça inicia, a janela acompanha, soltar reordena ou muda de área. */
-function useTaskDrag(): DragApi {
+/** Quanto tempo segurando em cima de uma fase recolhida até ela abrir. */
+const EXPAND_AFTER_MS = 600
+
+/**
+ * Motor do arrastar e soltar: a alça inicia, a janela acompanha, soltar reordena, muda de área ou
+ * manda para uma fase recolhida. Segurar em cima de uma fase recolhida chama `expandPhase`.
+ */
+function useTaskDrag(expandPhase: (phaseId: string) => void): DragApi {
   const { placeTask } = useLaunchActions()
   const s = useLaunchState()
   const toast = useToast()
@@ -553,9 +596,12 @@ function useTaskDrag(): DragApi {
     let raf = 0
     const update = () => {
       const t = dropTargetAt(last.current.x, last.current.y)
+      const areaId = t && 'areaId' in t ? t.areaId : null
+      const index = t && 'areaId' in t ? t.index : -1
+      const phaseId = t && 'phaseId' in t ? t.phaseId : null
       setDrag((d) =>
-        d && (d.overAreaId !== (t?.areaId ?? null) || d.overIndex !== (t?.index ?? -1))
-          ? { ...d, overAreaId: t?.areaId ?? null, overIndex: t?.index ?? -1 }
+        d && (d.overAreaId !== areaId || d.overIndex !== index || d.overPhaseId !== phaseId)
+          ? { ...d, overAreaId: areaId, overIndex: index, overPhaseId: phaseId }
           : d,
       )
     }
@@ -579,11 +625,20 @@ function useTaskDrag(): DragApi {
     }
     const onUp = () => {
       setDrag((d) => {
-        if (d && d.overAreaId) {
+        if (d && d.overPhaseId) {
+          // fase recolhida: fim da área de mesmo nome, senão da primeira área
+          const phase = s.phases.find((p) => p.id === d.overPhaseId)
+          const fromName = s.phases.flatMap((p) => p.areas).find((a) => a.id === d.fromAreaId)?.name
+          const area = phase?.areas.find((a) => a.name === fromName) ?? phase?.areas[0]
+          if (phase && area) {
+            placeTask(d.id, area.id, null)
+            if (area.id !== d.fromAreaId) toast(`Tarefa movida para ${phase.name}`)
+          }
+        } else if (d && d.overAreaId) {
           const ul = document.querySelector<HTMLUListElement>(
             `main ul[data-area-id="${d.overAreaId}"]`,
           )
-          const rows = ul ? Array.from(ul.querySelectorAll<HTMLLIElement>(':scope > li')) : []
+          const rows = ul ? taskRows(ul) : []
           const before = rows[d.overIndex]?.dataset.taskId ?? null
           placeTask(d.id, d.overAreaId, before)
           if (d.overAreaId !== d.fromAreaId) {
@@ -606,11 +661,24 @@ function useTaskDrag(): DragApi {
     }
   }, [drag, placeTask, s, toast])
 
+  const hoverPhase = drag?.overPhaseId ?? null
+  useEffect(() => {
+    if (!hoverPhase) return
+    const t = setTimeout(() => expandPhase(hoverPhase), EXPAND_AFTER_MS)
+    return () => clearTimeout(t)
+  }, [hoverPhase, expandPhase])
+
   const start: DragApi['start'] = (taskId, areaId, e) => {
     if (e.button !== 0) return
     e.preventDefault()
     last.current = { x: e.clientX, y: e.clientY }
-    setDrag({ id: taskId, fromAreaId: areaId, overAreaId: areaId, overIndex: -1 })
+    setDrag({
+      id: taskId,
+      fromAreaId: areaId,
+      overAreaId: areaId,
+      overIndex: -1,
+      overPhaseId: null,
+    })
   }
   return { drag, start }
 }
@@ -755,20 +823,25 @@ function AreaBlock({
 
       {collapsed ? null : (
         <>
-          {shown.length === 0 ? (
-            <p
-              className={`mb-2 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground ${
-                isDropHere ? 'border-primary text-foreground' : 'border-transparent'
-              }`}
-            >
-              {isDropHere
-                ? 'Solte aqui'
-                : allTasksDone
-                  ? `Tudo feito por aqui. ${pr.total} ${pr.total === 1 ? 'tarefa concluída' : 'tarefas concluídas'}.`
-                  : 'Nenhuma tarefa nesta área ainda.'}
-            </p>
-          ) : null}
           <ul data-area-id={area.id} className="grid gap-2">
+            {shown.length === 0 ? (
+              // área vazia: uma caixa do tamanho de uma tarefa, fácil de acertar ao arrastar
+              <li
+                className={`rounded-lg border border-dashed px-3 py-2.5 text-sm transition-colors ${
+                  isDropHere
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : drag
+                      ? 'border-border text-muted-foreground'
+                      : 'border-transparent text-muted-foreground'
+                }`}
+              >
+                {isDropHere
+                  ? 'Solte aqui'
+                  : allTasksDone
+                    ? `Tudo feito por aqui. ${pr.total} ${pr.total === 1 ? 'tarefa concluída' : 'tarefas concluídas'}.`
+                    : 'Nenhuma tarefa nesta área ainda.'}
+              </li>
+            ) : null}
             {shown.map((t, i) => (
               <TaskRow
                 key={t.id}
@@ -779,6 +852,7 @@ function AreaBlock({
                 dropBefore={isDropHere && drag.overIndex === i && drag.id !== t.id}
                 dropAfter={isDropHere && drag.overIndex >= shown.length && i === shown.length - 1}
                 onDragStart={canReorder ? (e) => start(t.id, area.id, e) : undefined}
+                dragDisabledReason={canReorder ? undefined : DRAG_OFF_HINT}
               />
             ))}
           </ul>
@@ -823,6 +897,7 @@ function TaskRow({
   dropBefore = false,
   dropAfter = false,
   onDragStart,
+  dragDisabledReason,
 }: {
   task: Task
   today: string
@@ -832,6 +907,8 @@ function TaskRow({
   dropAfter?: boolean
   /** presente quando a lista está sem filtro e a tarefa pode ser arrastada */
   onDragStart?: (e: ReactPointerEvent<HTMLButtonElement>) => void
+  /** sem arrastar agora: a alça aparece apagada com o motivo */
+  dragDisabledReason?: string
 }) {
   const { patchTask, removeTask } = useLaunchActions()
   const openTask = useContext(OpenTaskCtx)
@@ -979,6 +1056,7 @@ function TaskRow({
             onEdit={() => setEditing(true)}
             onRemove={requestRemove}
             onDragStart={onDragStart}
+            dragDisabledReason={dragDisabledReason}
           />
         </div>
       </div>
@@ -995,6 +1073,7 @@ function TaskRow({
             onEdit={() => setEditing(true)}
             onRemove={requestRemove}
             onDragStart={onDragStart}
+            dragDisabledReason={dragDisabledReason}
           />
         </div>
       </div>
@@ -1044,12 +1123,14 @@ function RowActions({
   onEdit,
   onRemove,
   onDragStart,
+  dragDisabledReason,
 }: {
   task: Task
   labels: Label[]
   onEdit: () => void
   onRemove: () => void
   onDragStart?: (e: ReactPointerEvent<HTMLButtonElement>) => void
+  dragDisabledReason?: string
 }) {
   return (
     <div className="flex shrink-0 items-center">
@@ -1057,13 +1138,22 @@ function RowActions({
       {onDragStart ? (
         <button
           type="button"
-          className="icon-btn cursor-grab touch-none active:cursor-grabbing"
-          aria-label={`Arrastar para reordenar: ${task.label}`}
-          title="Arraste para reordenar"
+          className="icon-btn cursor-grab touch-none text-foreground/80 hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
+          aria-label={`Arrastar: ${task.label}`}
+          title="Arraste para mover entre colunas e áreas"
           onPointerDown={onDragStart}
         >
           <GripVertical className="size-4" aria-hidden />
         </button>
+      ) : dragDisabledReason ? (
+        <span
+          className="icon-btn cursor-not-allowed opacity-35"
+          title={dragDisabledReason}
+          aria-label={dragDisabledReason}
+          role="img"
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </span>
       ) : null}
       <button
         type="button"

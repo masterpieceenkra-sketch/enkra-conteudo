@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 import { BRIEF_SECTIONS } from '../data/brief'
 import {
   SPRINT_CURRENT_PHASE_ID,
+  SPRINT_DONE_PHASE_ID,
   templateMilestones,
   templatePhaseIds,
   templatePhases,
@@ -764,7 +765,10 @@ export function useLaunchActions() {
       event = { ...base, action: 'task.link', details: { to: patch.link } }
     else if (patch.description !== undefined && patch.description !== (before.description ?? ''))
       event = { ...base, action: 'task.description', details: { value: short(patch.description) } }
-    apply((s) => updateTask(s, taskId, (t) => ({ ...t, ...patch })), event)
+    apply((s) => {
+      const next = updateTask(s, taskId, (t) => ({ ...t, ...patch }))
+      return patch.done !== undefined ? settleSprintDone(next, [taskId]) : next
+    }, event)
   }, [])
 
   /** Define a lista de responsáveis (pessoas do cadastro). Vazia = sem responsável. */
@@ -829,33 +833,16 @@ export function useLaunchActions() {
     const targetPhase = s0.phases.find((p) => p.areas.some((a) => a.id === targetAreaId))
     if (!from || !target || !targetPhase || from.area.id === targetAreaId) return
     const task = findTask(s0, taskId)
-    apply(
-      (s) => {
-        const t = findTask(s, taskId)
-        if (!t) return s
-        return {
-          ...s,
-          phases: s.phases.map((p) => ({
-            ...p,
-            areas: p.areas.map((a) => {
-              const without = a.tasks.filter((x) => x.id !== taskId)
-              if (a.id === targetAreaId) return { ...a, tasks: [...without, t] }
-              return without.length === a.tasks.length ? a : { ...a, tasks: without }
-            }),
-          })),
-        }
+    apply((s) => syncDoneWithColumn(moveToAreaEnd(s, taskId, targetAreaId), taskId), {
+      action: 'task.move',
+      entityType: 'task',
+      entityId: taskId,
+      entityLabel: task?.label,
+      details: {
+        from: `${from.phase.name} › ${from.area.name}`,
+        to: `${targetPhase.name} › ${target.name}`,
       },
-      {
-        action: 'task.move',
-        entityType: 'task',
-        entityId: taskId,
-        entityLabel: task?.label,
-        details: {
-          from: `${from.phase.name} › ${from.area.name}`,
-          to: `${targetPhase.name} › ${target.name}`,
-        },
-      },
-    )
+    })
   }, [])
 
   const moveTask = useCallback((taskId: string, direction: -1 | 1) => {
@@ -905,7 +892,7 @@ export function useLaunchActions() {
             return { ...a, tasks }
           }),
         }))
-        return changed || !sameArea ? { ...s, phases } : s
+        return changed || !sameArea ? syncDoneWithColumn({ ...s, phases }, taskId) : s
       }
       apply(
         reduce,
@@ -929,7 +916,11 @@ export function useLaunchActions() {
   const setAreaDone = useCallback((areaId: string, done: boolean) => {
     const a = findArea(load(), areaId)
     apply(
-      (s) => updateArea(s, areaId, (x) => ({ ...x, tasks: x.tasks.map((t) => ({ ...t, done })) })),
+      (s) =>
+        settleSprintDone(
+          updateArea(s, areaId, (x) => ({ ...x, tasks: x.tasks.map((t) => ({ ...t, done })) })),
+          a?.tasks.map((t) => t.id) ?? [],
+        ),
       {
         action: done ? 'area.done_all' : 'area.undone_all',
         entityType: 'area',
@@ -1775,6 +1766,56 @@ export function findTask(s: LaunchState, taskId: string): Task | undefined {
   for (const p of s.phases)
     for (const a of p.areas) for (const t of a.tasks) if (t.id === taskId) return t
   return undefined
+}
+
+/** Tira a tarefa de onde está e põe no fim da área, sem mexer nela. */
+function moveToAreaEnd(s: LaunchState, taskId: string, areaId: string): LaunchState {
+  const t = findTask(s, taskId)
+  if (!t) return s
+  return {
+    ...s,
+    phases: s.phases.map((p) => ({
+      ...p,
+      areas: p.areas.map((a) => {
+        const without = a.tasks.filter((x) => x.id !== taskId)
+        if (a.id === areaId) return { ...a, tasks: [...without, t] }
+        return without.length === a.tasks.length ? a : { ...a, tasks: without }
+      }),
+    })),
+  }
+}
+
+/**
+ * Quadro de sprint: "feita" e a coluna Concluído andam juntas. Marcar como feita leva a tarefa
+ * para o fim de Concluído; desmarcar lá devolve para a Sprint atual. Vai para a área de mesmo
+ * nome, senão para a primeira. Outros quadros não mudam.
+ */
+export function settleSprintDone(s: LaunchState, taskIds: string[]): LaunchState {
+  if (s.kind !== 'sprint' || taskIds.length === 0) return s
+  let out = s
+  for (const id of taskIds) {
+    const loc = locateTask(out, id)
+    const t = findTask(out, id)
+    if (!loc || !t) continue
+    const inDone = loc.phase.id === SPRINT_DONE_PHASE_ID
+    const targetId =
+      t.done && !inDone ? SPRINT_DONE_PHASE_ID : !t.done && inDone ? SPRINT_CURRENT_PHASE_ID : null
+    const target = targetId ? out.phases.find((p) => p.id === targetId) : undefined
+    if (!target?.areas.length) continue
+    const area = target.areas.find((a) => a.name === loc.area.name) ?? target.areas[0]
+    out = moveToAreaEnd(out, id, area.id)
+  }
+  return out
+}
+
+/** Quadro de sprint: soltar em Concluído marca como feita; tirar de lá desmarca. */
+export function syncDoneWithColumn(s: LaunchState, taskId: string): LaunchState {
+  if (s.kind !== 'sprint') return s
+  const loc = locateTask(s, taskId)
+  const t = findTask(s, taskId)
+  if (!loc || !t) return s
+  const done = loc.phase.id === SPRINT_DONE_PHASE_ID
+  return t.done === done ? s : updateTask(s, taskId, (x) => ({ ...x, done }))
 }
 
 /** Reuniões de hoje em diante, ordenadas por data e hora. */
