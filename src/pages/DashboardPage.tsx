@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Flag, Pencil } from 'lucide-react'
+import { AlertTriangle, ArrowRight, ExternalLink, Flag, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { LabelChip } from '../components/LabelChip'
@@ -7,6 +7,8 @@ import { Timeline } from '../components/Timeline'
 import { PageHeader } from '../components/PageHeader'
 import { ProgressBar } from '../components/ProgressBar'
 import { useIsAdmin } from '../components/useActor'
+import { briefModelOf, QUICK_LINK_FIELDS } from '../data/brief'
+import { isHttpUrl } from '../data/labels'
 import { phaseHasDates } from '../data/types'
 import { BOARD_MODE } from '../lib/board'
 import { formatBr, formatShort, relativeLabel, todayIso } from '../lib/dates'
@@ -136,6 +138,8 @@ export function DashboardPage() {
           )}
         </div>
       </div>
+
+      {briefModelOf(s.brief) === 'perpetuo' ? <QuickLinks brief={s.brief} /> : null}
 
       {showTimeline ? (
         <div className="mt-5 sm:mt-6">
@@ -392,5 +396,46 @@ function BoardHeader() {
         </form>
       ) : null}
     </>
+  )
+}
+
+/** Atalhos do brief do perpétuo: os links preenchidos de Acessos rápidos e Funil. */
+function QuickLinks({ brief }: { brief: Record<string, string> }) {
+  const links = QUICK_LINK_FIELDS.map((f) => ({ ...f, url: (brief[f.id] ?? '').trim() })).filter(
+    (f) => isHttpUrl(f.url),
+  )
+  return (
+    <section className="card mt-5 p-4 sm:mt-6 sm:p-6" aria-labelledby="links-title">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="links-title" className="text-xl">
+          Acessos rápidos
+        </h2>
+        <Link to="/brief" className="text-sm font-semibold text-primary hover:underline">
+          {links.length ? 'Editar no brief' : 'Preencher no brief'}
+        </Link>
+      </div>
+      {links.length === 0 ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Os links do Drive, dossiê, FAQ, suporte e funil aparecem aqui depois de preenchidos no
+          brief.
+        </p>
+      ) : (
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {links.map((l) => (
+            <li key={l.id}>
+              <a
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm font-medium transition-colors hover:border-primary hover:text-primary"
+              >
+                <span className="truncate">{l.label}</span>
+                <ExternalLink className="size-4 shrink-0 opacity-70" aria-hidden />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }

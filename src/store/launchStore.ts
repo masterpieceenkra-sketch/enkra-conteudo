@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import { BRIEF_SECTIONS } from '../data/brief'
+import { BRIEF_MODEL_KEY, BRIEF_SECTIONS, PERPETUO_BRIEF_SECTIONS } from '../data/brief'
 import {
   SPRINT_CURRENT_PHASE_ID,
   SPRINT_DONE_PHASE_ID,
@@ -696,7 +696,11 @@ function findArea(s: LaunchState, areaId: string): Area | undefined {
 }
 
 const briefLabel = (id: string) =>
-  BRIEF_SECTIONS.flatMap((sec) => sec.fields).find((f) => f.id === id)?.label ?? id
+  id === BRIEF_MODEL_KEY
+    ? 'Modelo do brief'
+    : ([...BRIEF_SECTIONS, ...PERPETUO_BRIEF_SECTIONS]
+        .flatMap((sec) => sec.fields)
+        .find((f) => f.id === id)?.label ?? id)
 const short = (v: string, n = 120) => (v.length > n ? `${v.slice(0, n)}…` : v)
 
 export function useLaunchActions() {

@@ -1,4 +1,4 @@
-export type FieldKind = 'short' | 'long' | 'number'
+export type FieldKind = 'short' | 'long' | 'number' | 'link'
 
 export interface BriefField {
   id: string
@@ -307,3 +307,167 @@ export const TEAM_FIELD_IDS = [
   'especialista',
   ...BRIEF_SECTIONS.find((s) => s.id === 'time')!.fields.map((f) => f.id),
 ]
+
+/** Qual brief o quadro usa. Fica dentro do próprio brief, então versões antigas do app preservam. */
+export type BriefModel = 'lancamento' | 'perpetuo'
+export const BRIEF_MODEL_KEY = '_modelo'
+
+export function briefModelOf(brief: Record<string, string>): BriefModel {
+  return brief[BRIEF_MODEL_KEY] === 'perpetuo' ? 'perpetuo' : 'lancamento'
+}
+
+const link = (id: string, label: string, hint?: string): BriefField => ({
+  id,
+  label,
+  kind: 'link',
+  ...(hint ? { hint } : {}),
+})
+
+/**
+ * Brief do perpétuo: o que o time consulta toda
+ * semana numa operação que vende todo dia. Os campos de link ganham "Abrir" e os preenchidos de
+ * Acessos rápidos e Funil aparecem no Painel.
+ */
+export const PERPETUO_BRIEF_SECTIONS: BriefSection[] = [
+  {
+    id: 'acessos',
+    title: 'Acessos rápidos',
+    description: 'Os links que o time abre toda semana. Os preenchidos também aparecem no Painel.',
+    fields: [
+      link('pDrive', 'Drive do projeto'),
+      link('pDossie', 'Dossiê do projeto'),
+      link('pConhecimento', 'Banco de conhecimento'),
+      link('pDepoimentos', 'Pasta de depoimentos'),
+      link('pCriativos', 'Página ou planilha de criativos'),
+      link('pBrandbook', 'Brandbook / identidade visual'),
+      link('pPesquisaForm', 'Pesquisa com alunas (formulário)'),
+      link('pPesquisaRespostas', 'Respostas da pesquisa'),
+      link('pFaq', 'FAQ'),
+      link('pManualSuporte', 'Manual do suporte'),
+      link('pAcompanhamento', 'Planilha de acompanhamento'),
+      link('pDashboard', 'Dashboard'),
+      link('pBaseLeads', 'Base de leads'),
+      link('pMetasCampanhas', 'Planejamento de metas e campanhas'),
+      link('pReembolso', 'Dossiê de reembolso'),
+      link('pPrompts', 'Prompts do app'),
+      link('pAcessos', 'Onde ficam os acessos', 'Link do cofre de senhas. Nunca a senha aqui.'),
+    ],
+  },
+  {
+    id: 'funil',
+    title: 'Funil do perpétuo',
+    description: 'O caminho de quem compra, do anúncio até a área de membros.',
+    fields: [
+      link('pPaginaVendas', 'Página de vendas'),
+      link('pVsl', 'VSL (player)'),
+      link('pCheckout', 'Checkout principal'),
+      { id: 'pOrderBump', label: 'Order bump', hint: 'Item e valor.' },
+      { id: 'pUpsell', label: 'Upsell', hint: 'Oferta, valor, página e checkout.', kind: 'long' },
+      { id: 'pDownsell', label: 'Downsell', hint: 'Oferta e valor. Ou "não tem".' },
+      link('pObrigado', 'Página de obrigado'),
+      link('pAreaMembros', 'Área de membros / app'),
+      {
+        id: 'pPlataformas',
+        label: 'Plataforma de vendas e de vídeo',
+        hint: 'Ex.: Hotmart, VTurb.',
+      },
+      link('pPainelTrafego', 'Painel de tráfego', 'Ex.: Utmify.'),
+    ],
+  },
+  {
+    id: 'oferta',
+    title: 'Produto e oferta',
+    fields: [
+      { id: 'pProduto', label: 'O que o produto entrega', kind: 'long' },
+      { id: 'pPreco', label: 'Preço, parcelamento e formas de pagamento' },
+      { id: 'pGarantia', label: 'Garantia e política de reembolso' },
+      { id: 'pBonus', label: 'Bônus', kind: 'long' },
+      { id: 'pPromessa', label: 'Promessa em uma frase', kind: 'long' },
+      { id: 'pMecanismo', label: 'Mecanismo', hint: 'Nome e como funciona.', kind: 'long' },
+    ],
+  },
+  {
+    id: 'publico',
+    title: 'Público e comunicação',
+    fields: [
+      { id: 'pPersona', label: 'Persona em poucas linhas', kind: 'long' },
+      { id: 'pObjecoes', label: 'Principais objeções', kind: 'long' },
+      { id: 'pTom', label: 'Tom de voz', kind: 'long' },
+      {
+        id: 'pProibido',
+        label: 'O que não pode ser dito',
+        hint: 'Promessas e termos que a plataforma, o Meta ou a ética da profissão não permitem.',
+        kind: 'long',
+      },
+    ],
+  },
+  {
+    id: 'trafego',
+    title: 'Tráfego e criativos',
+    fields: [
+      {
+        id: 'pContasAnuncio',
+        label: 'Contas de anúncio',
+        hint: 'Nome e ID da BM e da conta. Sem senha.',
+      },
+      { id: 'pVerba', label: 'Verba diária atual' },
+      { id: 'pCampeoes', label: 'Criativos campeões do momento', kind: 'long' },
+      {
+        id: 'pAngulos',
+        label: 'Ângulos já testados',
+        hint: 'O que funcionou e o que não funcionou.',
+        kind: 'long',
+      },
+    ],
+  },
+  {
+    id: 'numeros',
+    title: 'Metas e números',
+    fields: [
+      { id: 'pMetaMes', label: 'Meta de faturamento do mês' },
+      { id: 'pCpaRoas', label: 'CPA alvo e ROAS mínimo' },
+      { id: 'pConversao', label: 'Conversão da página e do checkout' },
+      { id: 'pTicket', label: 'Ticket médio com bump e upsell' },
+      { id: 'pReembolsoTaxa', label: 'Taxa de reembolso' },
+    ],
+  },
+  {
+    id: 'suporte',
+    title: 'Suporte e pós-venda',
+    fields: [
+      { id: 'pCanalSuporte', label: 'Canal de suporte e horário' },
+      { id: 'pQuemResponde', label: 'Quem responde' },
+      {
+        id: 'pRecuperacao',
+        label: 'Recuperação de vendas',
+        hint: 'Pix e boleto pendentes, cartão recusado, carrinho abandonado.',
+        kind: 'long',
+      },
+      { id: 'pPesquisa7', label: 'Pesquisa de 7 dias', kind: 'long' },
+    ],
+  },
+  {
+    id: 'rotina',
+    title: 'Time e rotina',
+    fields: [
+      {
+        id: 'pEquipe',
+        label: 'Quem faz o quê',
+        hint: 'Expert, copy, tráfego, edição, suporte.',
+        kind: 'long',
+      },
+      { id: 'pReuniao', label: 'Reunião semanal', hint: 'Dia, hora e link fixo.' },
+      { id: 'pFerramentas', label: 'Ferramentas', kind: 'long' },
+    ],
+  },
+]
+
+/** Seções do brief para o modelo do quadro. */
+export function briefSectionsFor(model: BriefModel): BriefSection[] {
+  return model === 'perpetuo' ? PERPETUO_BRIEF_SECTIONS : BRIEF_SECTIONS
+}
+
+/** Links do perpétuo que viram atalho no Painel: Acessos rápidos e Funil, nessa ordem. */
+export const QUICK_LINK_FIELDS: BriefField[] = PERPETUO_BRIEF_SECTIONS.filter(
+  (s) => s.id === 'acessos' || s.id === 'funil',
+).flatMap((s) => s.fields.filter((f) => f.kind === 'link'))
