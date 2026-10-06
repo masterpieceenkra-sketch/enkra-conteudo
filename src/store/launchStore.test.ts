@@ -3,6 +3,7 @@ import { CHECKLIST_TEMPLATE } from '../data/checklist'
 import {
   __resetStoreForTests,
   allTasks,
+  boardPurpose,
   buildInitialState,
   currentPhase,
   knownOwners,
@@ -249,5 +250,21 @@ describe('quadro de sprint: concluída vai para Concluído', () => {
     const t = s.phases[0].areas[0].tasks[0]
     t.done = true
     expect(settleSprintDone(s, [t.id])).toBe(s)
+  })
+})
+
+describe('tipo do painel', () => {
+  it('usa o do quadro e, sem ele, o do modelo', () => {
+    const sprint = buildInitialState('2026-09-18', 'sprint')
+    expect(boardPurpose(sprint)).toBe('Sprint semanal')
+    expect(boardPurpose({ ...sprint, purpose: 'Perpétuo' })).toBe('Perpétuo')
+    expect(boardPurpose(buildInitialState('2026-09-18', 'blank'))).toBe('Painel')
+  })
+
+  it('o estado guarda o tipo, limpo e com limite de tamanho', () => {
+    const raw = { ...buildInitialState('2026-09-18', 'sprint'), purpose: '  Perpétuo  ' }
+    expect(parseState(raw)?.purpose).toBe('Perpétuo')
+    expect(parseState({ ...raw, purpose: 'x'.repeat(80) })?.purpose).toHaveLength(40)
+    expect(parseState({ ...raw, purpose: '' })).not.toHaveProperty('purpose')
   })
 })

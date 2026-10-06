@@ -243,6 +243,8 @@ export interface LaunchState {
   version: 2
   /** Nome do quadro na interface e nos avisos; vazio usa o nome padrão do app */
   name?: string
+  /** Tipo do painel no topo do Painel (ex.: "Perpétuo"); vazio usa o do modelo */
+  purpose?: string
   /** Modelo do quadro; ausente = lançamento (todo estado antigo é de lançamento) */
   kind?: BoardKind
   /** URL deste quadro, gravada pelo servidor ao criar; usada nos links das mensagens */

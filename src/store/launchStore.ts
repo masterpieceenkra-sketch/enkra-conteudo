@@ -308,9 +308,12 @@ export function parseState(raw: unknown): LaunchState {
   const url = typeof obj.url === 'string' ? obj.url.slice(0, 300) : ''
   const phasesCustom = obj.phasesCustom === true
   const name = typeof obj.name === 'string' ? obj.name.trim().slice(0, 60) : ''
+  const purpose =
+    typeof obj.purpose === 'string' ? obj.purpose.trim().slice(0, PURPOSE_MAX_LENGTH) : ''
   return {
     version: 2,
     ...(name ? { name } : {}),
+    ...(purpose ? { purpose } : {}),
     kind,
     ...(url ? { url } : {}),
     ...(phasesCustom ? { phasesCustom: true } : {}),
@@ -705,6 +708,19 @@ export function useLaunchActions() {
       entityLabel: briefLabel(id),
       details: { value: short(value) },
     })
+  }, [])
+
+  /** Tipo do painel no topo do Painel ("Perpétuo"); vazio volta ao padrão do modelo. */
+  const setPurpose = useCallback((text: string) => {
+    const clean = text.trim().slice(0, PURPOSE_MAX_LENGTH)
+    if ((load().purpose ?? '') === clean) return
+    apply(
+      (s) => {
+        const { purpose: _drop, ...rest } = s
+        return clean ? { ...rest, purpose: clean } : rest
+      },
+      { action: 'board.purpose', entityType: 'launch', details: { to: clean } },
+    )
   }, [])
 
   const setDiary = useCallback((key: string, value: string) => {
@@ -1598,6 +1614,7 @@ export function useLaunchActions() {
 
   return {
     setBrief,
+    setPurpose,
     setDiary,
     patchTask,
     setTaskOwners,
@@ -1696,6 +1713,15 @@ export function progressOf(tasks: Task[]): { done: number; total: number; pct: n
 /** Modelo do quadro; estado antigo (sem o campo) é lançamento. */
 export function boardKind(s: LaunchState): BoardKind {
   return s.kind ?? 'launch'
+}
+
+export const PURPOSE_MAX_LENGTH = 40
+
+/** Tipo do painel no topo do Painel: o do quadro, senão o do modelo. */
+export function boardPurpose(s: LaunchState): string {
+  if (s.purpose) return s.purpose
+  const kind = boardKind(s)
+  return kind === 'sprint' ? 'Sprint semanal' : kind === 'launch' ? 'Lançamento' : 'Painel'
 }
 
 /** Nome do quadro para a interface e para os avisos. */

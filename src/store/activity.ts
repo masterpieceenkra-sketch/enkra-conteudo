@@ -69,6 +69,7 @@ export type ActivityAction =
   | 'label.update'
   | 'label.remove'
   | 'brief.set'
+  | 'board.purpose'
   | 'diary.set'
   | 'calendar.shift'
   | 'calendar.restore'
@@ -143,6 +144,7 @@ export const ACTION_LABELS: Record<ActivityAction, string> = {
   'label.update': 'alterou a etiqueta',
   'label.remove': 'excluiu a etiqueta',
   'brief.set': 'preencheu no brief',
+  'board.purpose': 'mudou o tipo do painel',
   'diary.set': 'escreveu no diário',
   'calendar.shift': 'moveu o calendário',
   'calendar.restore': 'restaurou as datas padrão',
@@ -208,6 +210,8 @@ export function detailText(r: ActivityRecord): string | null {
     case 'checklist.item_rename':
     case 'checklist.item_remove':
       return d.item ? `"${d.item}"` : null
+    case 'board.purpose':
+      return typeof d.to === 'string' && d.to ? `para "${d.to}"` : '(voltou ao padrão)'
     case 'brief.set':
     case 'diary.set':
     case 'task.description':

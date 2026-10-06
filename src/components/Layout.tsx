@@ -61,7 +61,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   : 'Conteúdo'
                 : isLaunch
                   ? 'Lançamento'
-                  : 'Quadro'}
+                  : state.purpose || 'Quadro'}
           </span>
 
           <nav

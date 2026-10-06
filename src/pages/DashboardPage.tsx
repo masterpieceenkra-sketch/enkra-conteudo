@@ -1,17 +1,25 @@
-import { AlertTriangle, ArrowRight, Flag } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Flag, Pencil } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { LabelChip } from '../components/LabelChip'
 import { MeetingsPanel } from '../components/MeetingsPanel'
 import { Timeline } from '../components/Timeline'
 import { PageHeader } from '../components/PageHeader'
 import { ProgressBar } from '../components/ProgressBar'
+import { useIsAdmin } from '../components/useActor'
+import { phaseHasDates } from '../data/types'
+import { BOARD_MODE } from '../lib/board'
 import { formatBr, formatShort, relativeLabel, todayIso } from '../lib/dates'
 import {
   allTasks,
+  boardKind,
+  boardName,
+  boardPurpose,
   currentPhase,
   nextMilestone,
   overdueTasks,
   progressOf,
+  PURPOSE_MAX_LENGTH,
   useLaunchActions,
   useLaunchState,
 } from '../store/launchStore'
@@ -40,13 +48,26 @@ export function DashboardPage() {
     .slice(0, 4)
 
   const launchStarted = s.launchStart <= today
+  // quadro de lançamento fala de fases com datas e marcos; os outros (perpétuo, sprint, em
+  // branco) falam do que está em foco agora
+  const isLaunch = boardKind(s) === 'launch'
+  const focus = phase ? phase.areas.flatMap((a) => a.tasks).filter((t) => !t.done) : []
+  const focusLate = focus.filter((t) => t.due && t.due < today).length
+  const showTimeline = isLaunch || s.phases.some(phaseHasDates)
 
   return (
     <>
-      <PageHeader kicker="Comu HUB" title="GPS do Lançamento">
-        Seu lançamento inteiro em quatro telas. Comece pelo brief, ajuste as datas no calendário e
-        vá marcando o checklist. Tudo é salvo automaticamente neste navegador.
-      </PageHeader>
+      {isLaunch ? (
+        <PageHeader
+          kicker={BOARD_MODE === 'single' ? 'Comu HUB' : boardName(s)}
+          title="GPS do Lançamento"
+        >
+          Seu lançamento inteiro em quatro telas. Comece pelo brief, ajuste as datas no calendário e
+          vá marcando o checklist. Tudo é salvo automaticamente neste navegador.
+        </PageHeader>
+      ) : (
+        <BoardHeader />
+      )}
 
       {/* Cards de resumo */}
       <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
@@ -65,27 +86,43 @@ export function DashboardPage() {
         </div>
 
         <div className="card p-4 sm:p-6">
-          <p className="label-mono">{launchStarted ? 'Fase atual' : 'Primeira fase'}</p>
+          <p className="label-mono">
+            {!isLaunch ? 'Em foco agora' : launchStarted ? 'Fase atual' : 'Primeira fase'}
+          </p>
           <p className="mt-1 font-display text-xl sm:mt-2 sm:text-2xl">{phase?.name ?? '—'}</p>
-          <p className="mt-1.5 text-sm text-muted-foreground sm:mt-2">
-            {formatBr(phase?.start)} → {formatBr(phase?.end)}
-          </p>
-          <p className="mt-3 text-sm sm:mt-4">
-            {launchStarted ? 'Lançamento começou em' : 'Lançamento começa em'}{' '}
-            <strong>{formatBr(s.launchStart)}</strong>
-            {!launchStarted ? (
-              <span className="text-muted-foreground">
-                {' '}
-                · {relativeLabel(s.launchStart, today)}
-              </span>
-            ) : null}
-          </p>
+          {isLaunch || (phase && phaseHasDates(phase)) ? (
+            <p className="mt-1.5 text-sm text-muted-foreground sm:mt-2">
+              {formatBr(phase?.start)} → {formatBr(phase?.end)}
+            </p>
+          ) : null}
+          {isLaunch ? (
+            <p className="mt-3 text-sm sm:mt-4">
+              {launchStarted ? 'Lançamento começou em' : 'Lançamento começa em'}{' '}
+              <strong>{formatBr(s.launchStart)}</strong>
+              {!launchStarted ? (
+                <span className="text-muted-foreground">
+                  {' '}
+                  · {relativeLabel(s.launchStart, today)}
+                </span>
+              ) : null}
+            </p>
+          ) : (
+            <p className="mt-3 text-sm sm:mt-4">
+              <strong>{focus.length}</strong> {focus.length === 1 ? 'pendente' : 'pendentes'}
+              {focusLate > 0 ? (
+                <span className="font-semibold text-danger">
+                  {' '}
+                  · {focusLate} {focusLate === 1 ? 'atrasada' : 'atrasadas'}
+                </span>
+              ) : null}
+            </p>
+          )}
         </div>
 
         <div className="card p-4 sm:p-6">
           <p className="label-mono">Próximo marco</p>
           <p className="mt-1 font-display text-xl sm:mt-2 sm:text-2xl">
-            {milestone?.label ?? 'Lançamento concluído'}
+            {milestone?.label ?? (isLaunch ? 'Lançamento concluído' : 'Sem marcos à frente')}
           </p>
           {milestone ? (
             <>
@@ -100,9 +137,11 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-5 sm:mt-6">
-        <Timeline state={s} today={today} />
-      </div>
+      {showTimeline ? (
+        <div className="mt-5 sm:mt-6">
+          <Timeline state={s} today={today} />
+        </div>
+      ) : null}
 
       {/* Foco de agora */}
       <div className="mt-5 grid gap-4 sm:mt-6 lg:grid-cols-[3fr_2fr]">
@@ -281,6 +320,77 @@ export function DashboardPage() {
           </p>
         </Link>
       </div>
+    </>
+  )
+}
+
+/**
+ * Topo do Painel dos quadros que não são de lançamento: o tipo do painel ("Perpétuo") e o nome
+ * do quadro. Admin troca o tipo ali mesmo.
+ */
+function BoardHeader() {
+  const s = useLaunchState()
+  const { setPurpose } = useLaunchActions()
+  const isAdmin = useIsAdmin()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const sprint = boardKind(s) === 'sprint'
+
+  return (
+    <>
+      <PageHeader
+        kicker={boardPurpose(s)}
+        title={boardName(s)}
+        actions={
+          isAdmin && !editing ? (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setDraft(s.purpose ?? '')
+                setEditing(true)
+              }}
+            >
+              <Pencil className="size-4" aria-hidden /> Tipo do painel
+            </button>
+          ) : null
+        }
+      >
+        {sprint
+          ? 'O que está na sprint, o que atrasou e as próximas reuniões, num lugar só. Arraste as tarefas entre as colunas no checklist e marque o que ficou pronto.'
+          : 'As tarefas do time, os prazos e as próximas reuniões, num lugar só.'}
+      </PageHeader>
+      {editing ? (
+        <form
+          className="card fade-in -mt-2 mb-6 flex flex-col gap-2 p-4 sm:flex-row sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setPurpose(draft)
+            setEditing(false)
+          }}
+        >
+          <label className="flex flex-1 flex-col gap-1">
+            <span className="label-mono">Tipo do painel</span>
+            <input
+              autoFocus
+              className="field"
+              placeholder="Ex.: Perpétuo"
+              maxLength={PURPOSE_MAX_LENGTH}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
+            />
+          </label>
+          <div className="flex gap-2">
+            <button type="submit" className="btn-primary">
+              Salvar
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => setEditing(false)}>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      ) : null}
     </>
   )
 }
