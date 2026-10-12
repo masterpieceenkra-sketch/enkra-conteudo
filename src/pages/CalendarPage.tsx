@@ -231,87 +231,95 @@ export function CalendarPage() {
         </form>
       </section>
 
-      {/* Marcos (só em quadro de lançamento) */}
-      {isLaunch ? (
-        <section className="card mt-5 p-4 sm:mt-6 sm:p-6" aria-labelledby="ms-title">
-          <h2 id="ms-title" className="text-xl">
-            Marcos principais
-          </h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {sortedMilestones.map((m) => (
-              <div
-                key={m.id}
-                className="flex flex-col gap-2 rounded-lg bg-surface-2 p-3 sm:flex-row sm:items-center"
-              >
-                <input
-                  className="field"
-                  aria-label="Nome do marco"
-                  value={m.label}
-                  onChange={(e) => patchMilestone(m.id, { label: e.target.value })}
-                />
-                <input
-                  type="date"
-                  className="field sm:w-auto"
-                  aria-label="Data do marco"
-                  value={m.date}
-                  onChange={(e) => patchMilestone(m.id, { date: e.target.value })}
-                />
-                <a
-                  href={isValidIso(m.date) ? googleCalendarUrl(milestoneEvent(m)) : undefined}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className={`icon-btn self-end sm:self-auto ${isValidIso(m.date) ? '' : 'pointer-events-none opacity-40'}`}
-                  aria-label={`Adicionar ${m.label} ao Google Agenda`}
-                  title="Adicionar ao Google Agenda"
-                >
-                  <CalendarPlus className="size-4" aria-hidden />
-                </a>
-                <button
-                  type="button"
-                  className="icon-btn self-end sm:self-auto"
-                  aria-label={`Excluir marco ${m.label}`}
-                  onClick={() => removeMilestone(m.id)}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </button>
-              </div>
-            ))}
-          </div>
-          <form
-            className="mt-4 flex flex-col gap-2 rounded-lg border border-dashed border-border p-3 sm:flex-row sm:items-center"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!newLabel.trim() || !isValidIso(newDate)) return
-              addMilestone(newLabel.trim(), newDate)
-              setNewLabel('')
-              setNewDate('')
-              toast('Marco adicionado')
-            }}
-          >
-            <input
-              className="field"
-              placeholder="Novo marco (ex.: Live de encerramento)"
-              aria-label="Nome do novo marco"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-            />
-            <input
-              type="date"
-              className="field sm:w-auto"
-              aria-label="Data do novo marco"
-              value={newDate}
-              onChange={(e) => setNewDate(e.target.value)}
-            />
-            <button
-              type="submit"
-              className="btn-secondary"
-              disabled={!newLabel.trim() || !isValidIso(newDate)}
+      {/* Marcos: o lançamento já nasce com os dele; os outros quadros criam os seus */}
+      <section className="card mt-5 p-4 sm:mt-6 sm:p-6" aria-labelledby="ms-title">
+        <h2 id="ms-title" className="text-xl">
+          Marcos principais
+        </h2>
+        {sortedMilestones.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Datas importantes do quadro, como entrega, reunião com o cliente ou início de campanha.
+            Aparecem no Gantt, na linha do tempo e no calendário.
+          </p>
+        ) : null}
+        <div className={`grid gap-3 sm:grid-cols-2 ${sortedMilestones.length ? 'mt-5' : ''}`}>
+          {sortedMilestones.map((m) => (
+            <div
+              key={m.id}
+              className="flex flex-col gap-2 rounded-lg bg-surface-2 p-3 sm:flex-row sm:items-center"
             >
-              <Plus className="size-4" aria-hidden /> Adicionar
-            </button>
-          </form>
-        </section>
-      ) : null}
+              <input
+                className="field"
+                aria-label="Nome do marco"
+                value={m.label}
+                onChange={(e) => patchMilestone(m.id, { label: e.target.value })}
+              />
+              <input
+                type="date"
+                className="field sm:w-auto"
+                aria-label="Data do marco"
+                value={m.date}
+                onChange={(e) => patchMilestone(m.id, { date: e.target.value })}
+              />
+              <a
+                href={isValidIso(m.date) ? googleCalendarUrl(milestoneEvent(m)) : undefined}
+                target="_blank"
+                rel="noreferrer noopener"
+                className={`icon-btn self-end sm:self-auto ${isValidIso(m.date) ? '' : 'pointer-events-none opacity-40'}`}
+                aria-label={`Adicionar ${m.label} ao Google Agenda`}
+                title="Adicionar ao Google Agenda"
+              >
+                <CalendarPlus className="size-4" aria-hidden />
+              </a>
+              <button
+                type="button"
+                className="icon-btn self-end sm:self-auto"
+                aria-label={`Excluir marco ${m.label}`}
+                onClick={() => removeMilestone(m.id)}
+              >
+                <Trash2 className="size-4" aria-hidden />
+              </button>
+            </div>
+          ))}
+        </div>
+        <form
+          className="mt-4 flex flex-col gap-2 rounded-lg border border-dashed border-border p-3 sm:flex-row sm:items-center"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!newLabel.trim() || !isValidIso(newDate)) return
+            addMilestone(newLabel.trim(), newDate)
+            setNewLabel('')
+            setNewDate('')
+            toast('Marco adicionado')
+          }}
+        >
+          <input
+            className="field"
+            placeholder={
+              isLaunch
+                ? 'Novo marco (ex.: Live de encerramento)'
+                : 'Novo marco (ex.: Entrega da campanha)'
+            }
+            aria-label="Nome do novo marco"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+          />
+          <input
+            type="date"
+            className="field sm:w-auto"
+            aria-label="Data do novo marco"
+            value={newDate}
+            onChange={(e) => setNewDate(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="btn-secondary"
+            disabled={!newLabel.trim() || !isValidIso(newDate)}
+          >
+            <Plus className="size-4" aria-hidden /> Adicionar
+          </button>
+        </form>
+      </section>
 
       <ConfirmDialog
         open={phaseToRemove !== null}

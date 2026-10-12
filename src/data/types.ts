@@ -227,7 +227,7 @@ export const BOARD_KIND_INFO: Record<BoardKind, { title: string; hint: string }>
   },
   sprint: {
     title: 'Sprint semanal',
-    hint: 'Backlog, sprint atual, próxima e concluído. Sem datas de fase e sem marcos.',
+    hint: 'Backlog, sprint atual, próxima e concluído. Começa sem datas nem marcos; você cria os seus.',
   },
   blank: {
     title: 'Em branco',

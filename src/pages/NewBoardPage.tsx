@@ -28,8 +28,20 @@ export function NewBoardPage() {
 
   const id = slugTouched ? slug : slugify(name)
   const slugOk = isValidSlug(id)
-  const clientFilled = clientName.trim() !== '' || clientPhone.trim() !== ''
-  const clientOk = !clientFilled || (clientName.trim() !== '' && isValidPhone(clientPhone))
+  // o número de quem está criando já entra como admin: repetido no campo do cliente, é ignorado
+  const clientIsMe =
+    clientPhone.trim() !== '' && normalizePhone(clientPhone) === normalizePhone(myPhone)
+  const clientFilled = !clientIsMe && (clientName.trim() !== '' || clientPhone.trim() !== '')
+  const clientProblem = !clientFilled
+    ? null
+    : clientPhone.trim() === ''
+      ? 'Falta o WhatsApp do cliente. Ou apague o nome para criar sem ele.'
+      : !isValidPhone(clientPhone)
+        ? 'WhatsApp incompleto: coloque com DDD. Ou apague para criar sem o cliente.'
+        : clientName.trim() === ''
+          ? 'Falta o nome de quem usa esse WhatsApp. Ou apague o número para criar sem o cliente.'
+          : null
+  const clientOk = clientProblem === null
   // resultado vale só para o endereço conferido; enquanto muda, volta a "conferindo"
   const free = checked && checked.id === id ? checked.free : null
   const valid = name.trim() !== '' && slugOk && myName.trim() !== '' && clientOk && free !== false
@@ -216,7 +228,7 @@ export function NewBoardPage() {
                 {isContent ? 'Cliente que aprova (opcional)' : 'Admin do cliente (opcional)'}
               </span>
               <input
-                className="field"
+                className={`field ${clientFilled && clientName.trim() === '' ? 'border-danger' : ''}`}
                 placeholder="Nome"
                 maxLength={80}
                 value={clientName}
@@ -227,7 +239,7 @@ export function NewBoardPage() {
               <span className="text-xs text-muted-foreground">WhatsApp</span>
               <input
                 type="tel"
-                className={`field ${clientFilled && !clientOk ? 'border-danger' : ''}`}
+                className={`field ${clientFilled && !isValidPhone(clientPhone) ? 'border-danger' : ''}`}
                 placeholder="(99) 99999-9999"
                 maxLength={30}
                 value={clientPhone}
@@ -235,6 +247,15 @@ export function NewBoardPage() {
               />
             </label>
           </div>
+          {clientIsMe ? (
+            <p className="text-xs text-muted-foreground" role="status">
+              Esse WhatsApp já é o seu e você entra como admin. O campo do cliente fica de fora.
+            </p>
+          ) : clientProblem ? (
+            <p className="text-xs text-danger" role="alert">
+              {clientProblem}
+            </p>
+          ) : null}
           <p className="text-xs text-muted-foreground">
             {isContent
               ? 'Você entra como admin e o cliente entra só para ver e aprovar. Os dois recebem as boas-vindas com o link. O time entra depois, em Usuários.'
